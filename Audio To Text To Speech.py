@@ -4,7 +4,7 @@
 # hf.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF:Q4_0     = TinyLlama
 import ollama
 
-MODEL = 'hf.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF:Q4_0'  # Tinylama
+MODEL = 'hf.co/HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF:latest'  # #Smollm2
 
 import cv2
 import numpy as np
@@ -16,10 +16,12 @@ import os
 from collections import deque
 from scipy.io.wavfile import write
 from scipy.signal import resample
-import speech_recognition as sr
 import pyttsx3
 import subprocess
 import imageio_ffmpeg
+
+from vosk import Model as VoskModel, KaldiRecognizer
+import json
 
 # === CONFIG ===
 FPS = 20
@@ -75,9 +77,6 @@ threading.Thread(target=video_capture_loop, daemon=True).start()
 
 # === CLIP SAVING ===
 def save_clip():
-    print('Josh> Saving Clip')
-    pyttsx3.speak('Saving clip!')
-
     timestamp = time.strftime("%Y%m%d-%H%M%S")
     raw_video = f"clip_{timestamp}.avi"
     raw_audio = f"clip_{timestamp}.wav"
@@ -134,9 +133,9 @@ def save_clip():
     try:
         subprocess.run(cmd, check=True)
         print(f"[✓] Final clip saved: {final_output}")
-        speak_text = 'Clip saved as', final_output
-        pyttsx3.speak(speak_text)
+        pyttsx3.speak(f'Clip saved as {final_output}')
     except subprocess.CalledProcessError as e:
+        pyttsx3.speak('There was an error clipping! FFmpeg error')
         print(f"[!] FFmpeg error: {e}")
     finally:
         try:
@@ -146,49 +145,69 @@ def save_clip():
             print(f"[!] Cleanup error: {e}")
 
 
-# === VOICE COMMANDS ===
-recognizer = sr.Recognizer()
+# === VOICE COMMANDS with Vosk and Memory ===
+vosk_model = VoskModel("models/vosk-model-small-en-us-0.15")  # Adjust path if needed
+recognizer = KaldiRecognizer(vosk_model, AUDIO_SAMPLE_RATE)
+
+conversation_history = [
+    {"role": "system", "content": "You are Josh, a helpful assistant. You like to keep responses medium size and are a bit goofy"}
+]
 
 
-def voice_command_loop():
+def voice_command_loop_vosk():
     pyttsx3.speak('Activated!')
     print("Activated")
 
-    while True:
-        try:
-            with sr.Microphone() as source:
-                recognizer.adjust_for_ambient_noise(source, duration=0.5)
-                audio = recognizer.listen(source)
+    def callback(indata, frames, time_info, status):
+        if recognizer.AcceptWaveform(bytes(indata)):
+            result = json.loads(recognizer.Result())
+            command = result.get("text", "").lower()
+            if not command:
+                return
 
-            command = recognizer.recognize_google(audio).lower()
-            if "josh clip" in command:
+            if command == 'josh terminate two zero zero nine':
+                print("Good Bye!")
+                pyttsx3.speak('Good Bye')
+                cap.release()
+                cv2.destroyAllWindows()
+                exit()
+
+            elif "josh clip" in command:
+                print('Clipping...')
+                pyttsx3.speak('Clipping')
                 threading.Thread(target=save_clip, daemon=True).start()
+
             elif "josh" in command:
-                print("You said:", command)
+                print("You:", command)
+                conversation_history.append({"role": "user", "content": command})
+
                 stream = ollama.chat(
                     model=MODEL,
-                    messages=[{'role': 'user', 'content': command}],
+                    messages=conversation_history,
                     stream=True
                 )
+
                 answer = ''
                 for chunk in stream:
                     answer += chunk['message']['content']
                 print(answer)
+
+                conversation_history.append({"role": "assistant", "content": answer})
                 pyttsx3.speak(answer)
 
-        except sr.UnknownValueError:
-            pass
-        except sr.RequestError as e:
-            print(f"[ERROR] Speech recognition: {e}")
+    with sd.RawInputStream(samplerate=AUDIO_SAMPLE_RATE, blocksize=8000, dtype='int16', channels=1, callback=callback):
+        while True:
+            time.sleep(0.1)
 
 
-threading.Thread(target=voice_command_loop, daemon=True).start()
+threading.Thread(target=voice_command_loop_vosk, daemon=True).start()
 
 # === MAIN LOOP ===
 try:
     while True:
         time.sleep(1)
 except KeyboardInterrupt:
-    print("Exiting...")
+    print("Good Bye!")
+    pyttsx3.speak('Good Bye')
     cap.release()
     cv2.destroyAllWindows()
