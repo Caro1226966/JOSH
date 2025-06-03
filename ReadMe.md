@@ -1,4 +1,4 @@
-# Welcome to JOSH
+# Welcome to JOSH (Just One Smart Helper)
 
 #
 ### in the terminal you need to install dependencies
@@ -11,8 +11,11 @@ pip install opencv-python scipy speechrecognition pyttsx3 imageio-ffmpeg ollama 
 
 ## What is JOSH?
 
-### - josh is a cool little ai chatbot run through ollama it allows for audio and video clipping (1 min) and lets you have speech to sppeech conversations :)
+### - JOSH is a cool little ai chatbot run through ollama it allows for audio and video clipping (1 min) and lets you have speech to sppeech conversations :)
 
 ## What AI model does JOSH use?
 
-### - Josh is set to Tinyllama by default but as it is running through ollama can be changed to whatever you want
+### - Josh is set to smollm2 by default but as it is running through ollama can be changed to whatever you want
+
+## Josh (for reference)
+![img_1.png](img_1.png)
